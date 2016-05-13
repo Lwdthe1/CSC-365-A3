@@ -16,6 +16,8 @@ I haven't had a chance to clean up this directory from previous assignments, so 
 The program makes use of two important external algorithms:
 ##[Prim's Algorithm](https://www.google.com/search?q=Prim%27s+algorithm&rlz=1C1CHFX_enUS651US651&oq=Prim%27s+algorithm&aqs=chrome..69i57.2479j0j7&sourceid=chrome&ie=UTF-8) for a Minimum Spanning Tree
 
+There is a known error at the end of this README involving Prim's algorithm. Do consult it.
+
 ##[Dijkstra's Algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm) For Finding Shortest Paths
 
 Research these algorithms and see how you can make their usage better in the program: `/src/Algorithms`
@@ -65,6 +67,8 @@ After you enter a pair, e.g. "0,41", click "Show Path" now and the program will 
 For some reason, the numbers of the source and destination sites don't line up after awhile. Try running the program to see which numbers actually match up before showing the program off.
 
 ###Graph Fully Connected
-The program is supposed to return the number of spanning trees for any arbitrary node as a starting point, but because I currently only have a single site in my base sites `/websitesA3.txt`, the graph is fully connected and, intuitively, there are no spanning trees reported by Prim's algorithm.
+The program is supposed to return the number of spanning trees for any arbitrary node as a starting point, but because I currently only have a single site in my base sites `/websitesA3.txt`, the graph is fully connected and, intuitively, there are no spanning trees reported by Prim's algorithm. 
+
+This may be an error in how I implemented Prim's algorithm, so please do see if you can make this better.
 
 
