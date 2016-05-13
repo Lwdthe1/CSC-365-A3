@@ -32,8 +32,22 @@ The program will save your edges to the `/edgesA3D.txt` file.
 
 The methods in this class have quite descriptive names, so they document themselves. A year ago, I failed to provide more documentation on the methods with lesser importance, but you should be fine navigating `src/frames/A3Frame5`.
 
-Note that I already have the edges loaded. If you want to load your own, I believ you should delete /edgesA3D.txt or change the name of the file to load the edges to. I actually don't suggest you delete `/edgesA3D.txt` because the edges take quite some time to load and you may need `/edgesA3D.txt` for testing in case anything goes wrong when you make changes.
+###Most Important Method for Similarity Metric
+`compareBaseSiteToItsExternalSites()` in `src/frames/A3Frame5`. This is where the similarity metric begins.
+You should not manipulate this method much if at all. The method you may be concerned with for changing your similarity metric is `LWebite.getSimilarityPercentage()` with is called at the end of `compareBaseSiteToItsExternalSites()` like so:
 
+```Java
+ int weight = (int) LHashTable.compare(baseSiteHashTable, comparisonWebsite).getSimilarityPercentage();
+ addEdge(urlStringA, urlStringB, weight);
+```
+
+That compares a given LWebsite's data to a another website's hashtable data with `LHashTable.compare` and calls `LWebsite.getSimilarityPercentage` on the resultant comapred LWebsite to get its similarity to a base site from which an edge will be created for the graph.
+
+###IMPORTANT NOTE
+I already have the edges loaded. If you want to load your own, I believ you should delete /edgesA3D.txt or change the name of the file to load the edges to. I actually don't suggest you delete `/edgesA3D.txt` because the edges take quite some time to load and you may need `/edgesA3D.txt` for testing in case anything goes wrong when you make changes.
+
+Also, please do put a different starting website in `/websitesA3.txt` to load your egdes from.
+I suggest a large wikipedia page because they have the most external links and have an abundance of text.
 ##After Edges Loaded
 Once the loading is complete, you can click "Show Path". Nothing will happen just yet.
 On the right side of the gui, there will be a list of "Source Sites" and "Destination Sites" numbered vertically along the left side of that pane.
