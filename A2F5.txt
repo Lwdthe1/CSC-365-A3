@@ -1,0 +1,820 @@
+/*
+ * 
+ */
+package frames;
+
+import Classes.LWebsiteA2;
+import Classes.LWord;
+import btrees.LBTreeA2;
+import hashtables.LHashTable;
+import hashtables.LHashTableA2;
+import java.awt.BorderLayout;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.GridLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import util.FileImporter;
+import util.LHttp;
+import util.LJSoup;
+import util.LMeths;
+import util.LRandAccessFile;
+
+/**
+ *
+ * @author Lwdthe1
+ */
+public final class Assignment2Frame5 extends JFrame implements ActionListener {
+
+    //cache data info
+    public static final String mSystemWebsiteUrlStringsFile = "websites3.txt";
+    public static final String mWebsitesCacheIndexFile = "cacheA2/index.dat";
+    public static final String mWebsitesCacheDirectory = "cacheA2/data/";
+
+    public static LHashTableA2 mCachedWebsiteUrlStringsHashTableA2 = new LHashTableA2();
+    public static LHashTableA2 mNewCacheWebsiteUrlStringsHashTableA2 = new LHashTableA2();
+    private LRandAccessFile mWebsitesCacheIndexRandomAccessFile;
+    //initiate loading from cache as false
+    public boolean loadFromCache = false;
+
+    String mSearchTextFieldHint = "enter a URL ...";
+    String mSearchUrlString = "";
+
+    /**
+     * Data Stores
+     */
+    LBTreeA2 mSearchSiteBTree;
+    ArrayList<LWebsiteA2> mSystemComparisonSites = new ArrayList<>();
+    ArrayList<LWebsiteA2> mComparedSites;
+
+    JButton mHelpButton;
+    JButton mSearchButton;
+
+    JTextField mSearchTextField;
+    JTextField mResultsTitleTextField;
+    JTextField mSimilarSitesTitleTextField;
+
+    JTextArea mResultsTextArea;
+    JTextArea mSimilarSitesTextArea;
+
+    SystemActivityFrame mSystemActivityFrame;
+
+    SystemActivityFrame mAfterSaveCloseSystemActivityFrame;
+    JButton mAfterCacheSaveExitProgramButton;
+    JTextArea mAfterCacheSaveExitProgramTextArea;
+
+    public Assignment2Frame5(String title, int width, int height) {
+        super(title);
+        setSize(width, height);
+        setUpClosingOperation();
+        addComponents(getContentPane());
+        loadCachedSitesThread.start();
+        addActionListeners();
+        setVisible(true);
+    }
+    
+    private void openSystemActivityFrame(String title) {
+        if (mSystemActivityFrame == null) {
+            mSystemActivityFrame = new SystemActivityFrame(title, 500, 500);
+        }
+    }
+
+    public void setUpClosingOperation() {
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent we) {
+                String ObjButtons[] = {"Yes", "No"};
+                int PromptResult = JOptionPane.showOptionDialog(null, "Are you sure you want to exit?", "Online Examination System",
+                        JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, ObjButtons, ObjButtons[1]);
+                if (PromptResult == JOptionPane.YES_OPTION) {
+                    //thread to save and close asynchronisly
+                    saveAndCloseProgram();
+
+                }
+            }
+        });
+    }
+
+    public void saveAndCloseProgram() {
+        mAfterSaveCloseSystemActivityFrame = new SystemActivityFrame("Saving & Exiting Program", 400, 400);
+        mAfterSaveCloseSystemActivityFrame.appendActivity("Saving the program's cache before exit");
+
+        mAfterCacheSaveExitProgramTextArea = mAfterSaveCloseSystemActivityFrame.mSystemActivityTextArea;
+        mAfterCacheSaveExitProgramButton = mAfterSaveCloseSystemActivityFrame.mSystemActivityActionButton;
+        mAfterCacheSaveExitProgramButton.addActionListener(this);
+        mAfterCacheSaveExitProgramButton.setVisible(true);
+        /**
+         * thread to save cached sites to disk will let user close the program
+         * after the save is complete
+         */
+        Thread saveCachedSitesThread = new Thread() {
+            @Override
+            public void run() {
+                mSearchButton.setEnabled(false);
+                saveCachedSites();
+                mAfterSaveCloseSystemActivityFrame.mSystemActivityActionButton.setEnabled(true);
+            }
+        };
+        saveCachedSitesThread.start();
+    }
+
+    private void addComponents(Container contentPane) {
+        JPanel controlPanel = createControlPanel();
+        JPanel contentPanel = createMasterContentPanel();
+
+        JPanel resultsPanel = createResultsPanel();
+        JPanel similarSitesPanel = createSimilarSitesPanel();
+
+        JScrollPane resultsScrollPane = new JScrollPane(resultsPanel);
+        JScrollPane similarSitesScrollPane = new JScrollPane(similarSitesPanel);
+
+        contentPanel.add(resultsScrollPane);
+        contentPanel.add(similarSitesScrollPane);
+
+        contentPane.setLayout(new BorderLayout());
+        contentPane.add(controlPanel, BorderLayout.NORTH);
+        contentPane.add(contentPanel, BorderLayout.CENTER);
+
+        makeContentTextObjectsUneditable();
+    }
+
+    private JPanel createMasterContentPanel() {
+        //create the master content panel to hold the three sub content panels
+        JPanel contentPanel = new JPanel();
+        GridLayout contentPanelLayout = new GridLayout();
+        contentPanel.setLayout(contentPanelLayout);
+        return contentPanel;
+    }
+
+    private JPanel createControlPanel() {
+        //create control panel
+        JPanel controlPanel = new JPanel();
+        GridLayout controlPanelLayout = new GridLayout();
+        controlPanel.setLayout(controlPanelLayout);
+        //components for control panel
+        mHelpButton = new JButton("Help");
+        mSearchButton = new JButton("Search");
+        mSearchTextField = new JTextField();
+        mSearchTextField.setMinimumSize(new Dimension(20, 30));
+        //add the control panel's components
+        controlPanel.add(mHelpButton, controlPanelLayout);
+        controlPanel.add(mSearchTextField);
+        controlPanel.add(mSearchButton);
+
+        return controlPanel;
+    }
+
+    private JPanel createResultsPanel() {
+        //create the results panel
+        JPanel resultsPanel = new JPanel();
+        BorderLayout resultsPanelLayout = new BorderLayout();
+        resultsPanel.setLayout(resultsPanelLayout);
+        //components for the results panel
+        resultsPanel.add(new JLabel("Search Results"), BorderLayout.NORTH);
+        mResultsTextArea = new JTextArea();
+        mResultsTextArea.setLineWrap(true);
+        mResultsTextArea.setWrapStyleWord(true);
+        //add the results panel's components
+        resultsPanel.add(mResultsTextArea, BorderLayout.CENTER);
+
+        return resultsPanel;
+    }
+
+    private JPanel createSimilarSitesPanel() {
+        //create the similarSites panel
+        JPanel similarSitesPanel = new JPanel();
+        BorderLayout similarSitesPanelLayout = new BorderLayout();
+        similarSitesPanel.setLayout(similarSitesPanelLayout);
+        //components for the similarSites panel
+        mSimilarSitesTextArea = new JTextArea();
+        //add the similarSites panel's components
+        similarSitesPanel.add(new JLabel("Cached Sites (" + mSystemWebsiteUrlStringsFile + ")"), BorderLayout.NORTH);
+        similarSitesPanel.add(mSimilarSitesTextArea, BorderLayout.CENTER);
+
+        return similarSitesPanel;
+    }
+
+    private void makeContentTextObjectsUneditable() {
+        if (confirmContentTextObjectsNotNull()) {
+            mResultsTextArea.setEditable(false);
+            mSimilarSitesTextArea.setEditable(false);
+        }
+    }
+
+    private boolean confirmContentTextObjectsNotNull() {
+        return mResultsTextArea != null
+                && mSimilarSitesTextArea != null;
+    }
+
+    public void addActionListeners() {
+        mSearchButton.addActionListener(this);
+        mHelpButton.addActionListener(this);
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent event) {
+        String command = event.getActionCommand();
+        if (command.equalsIgnoreCase("search")) {
+            //thread to do search asynchronisly
+            Thread doSearchThread = new Thread() {
+                @Override
+                public void run() {
+                    mSearchButton.setEnabled(false);
+                    mSearchButton.setText("Searching...");
+                    doSearch();
+                    mSearchButton.setText("Search");
+                    mSearchButton.setEnabled(true);
+                }
+            };
+            doSearchThread.start();
+        } else if (command.equalsIgnoreCase("help")) {
+            /**
+             * thread to populate help text area
+             */
+            Thread showHelpThread = new Thread() {
+                @Override
+                public void run() {
+                    new HelpFrame("Help", 500, 500);
+                }
+            };
+            showHelpThread.start();
+        } else if (event.getSource().equals(mAfterCacheSaveExitProgramButton)) {
+            System.exit(0);
+        }
+    }
+
+    public void doSearch() {
+        mSearchSiteBTree = new LBTreeA2();
+
+        String urlString = mSearchTextField.getText().trim();
+        mSearchUrlString = urlString;
+        mResultsTextArea.setText("\n\n*Working my butt off over here, just a second...\n\n");
+        try {
+            mSearchSiteBTree.scanInWords(LMeths.fetchWebsiteText(urlString), urlString);
+            LWebsiteA2 userSite = new LWebsiteA2(mSearchSiteBTree, urlString);
+            mResultsTextArea.setText("");
+            mResultsTextArea.append(LMeths.formatS("\n#%s Total Insertion Frequencies: %s\n\n", urlString, userSite.getTotalWordsFrequencies()));
+
+            userSite.getWordsFrequencyBTree().toStringClean();
+
+            mSearchButton.setText("Comparing Words...");
+            compareSearchSiteToSystemSites();
+        } catch (MalformedURLException e) {
+            mResultsTextArea.setText("#WARNING:\n You've gone screwed up now! \n\n"
+                    + urlString + " is not a proper URL.\nURL must resemble http://www.website.com");
+        } catch (IOException e) {
+            mResultsTextArea.setText("#WARNING:\n Connection to " + urlString + " failed...");
+        }
+    }
+
+    /**
+     * Similarity Metric compares the user's search site to the system's
+     * pre loaded sites displays the system site that most closely matches the
+     * specific words and their frequencies of the user's search site
+     */
+    public void compareSearchSiteToSystemSites() {
+        mComparedSites = new ArrayList<>();
+        //open frame to show the background system activity
+        SystemActivityFrame searchSystemActivityFrame = new SystemActivityFrame("Search System Activity " + mSearchUrlString, 375, 900);
+
+        /**
+         * compare each cached site to the user's search site to get similarity
+         * points of each
+         */
+        compareEachCachedSiteToUserSite(searchSystemActivityFrame);
+
+        /**
+         * compare each cached site to the other cached sites to see which one
+         * has highest similarity points to the user's search site
+         */
+        ArrayList<LWebsiteA2> mostSimilarSites = compareCachedSitesForMostSimilarToUserSite();
+
+        int mostSimilarSiteCount = 1;
+        for (LWebsiteA2 similarSite : mostSimilarSites) {
+            displayMostSimilarSystemSite(similarSite);
+            mostSimilarSiteCount++;
+        }
+        //close the background system activity frame
+        searchSystemActivityFrame.dispatchEvent(new WindowEvent(searchSystemActivityFrame, WindowEvent.WINDOW_CLOSING));
+    }
+
+    /**
+     * Similarity Metric: first step
+     *
+     * for each cached site, get its word frequency similarity to the user's
+     * site and add the returned LWebsite to the array list for comparison to
+     * the other system sites in next step
+     *
+     * @param searchSystemActivityFrame a frame that pops up to show the
+     * background system activity
+     */
+    public void compareEachCachedSiteToUserSite(SystemActivityFrame searchSystemActivityFrame) {
+        ArrayList<LWebsiteA2> compareTheseSites = mSystemComparisonSites;
+        for (LWebsiteA2 systemSite : compareTheseSites) {
+            System.out.println("");
+            if (!systemSite.getUrlString().equals(mSearchUrlString)) {
+                mComparedSites.add(LBTreeA2.compare(mSearchSiteBTree, systemSite, searchSystemActivityFrame));
+            }
+        }
+    }
+
+    /**
+     * Similarity Metric: second step compare the system sites to each other to
+     * see which one most closely match the user's site words frequency
+     *
+     * @return the most similar site's data as an instance of LWebsiteA2
+     */
+    public ArrayList<LWebsiteA2> compareCachedSitesForMostSimilarToUserSite() {
+        ArrayList<LWebsiteA2> mostSimilarSites = new ArrayList<>();
+        double mostSimilarSiteSimilarity = 0.0;
+        double mostSimilarSiteSimilarity2 = 0.0;
+        double mostSimilarSiteSimilarity3 = 0.0;
+        LWebsiteA2 mostSimilarSite = null;
+        LWebsiteA2 mostSimilarSite2 = null;
+        LWebsiteA2 mostSimilarSite3 = null;
+
+        for (int i = 1; i <= 3; i++) {
+            if (i == 1) {
+                for (LWebsiteA2 comparedSite : mComparedSites) {
+                    if (comparedSite.getSimilarityPercentage() > mostSimilarSiteSimilarity) {
+                        mostSimilarSite = comparedSite;
+                        mostSimilarSiteSimilarity = comparedSite.getSimilarityPercentage();
+                    }
+                }
+            } else if (i == 2) {
+                for (LWebsiteA2 comparedSite : mComparedSites) {
+                    if (comparedSite.getSimilarityPercentage() > mostSimilarSiteSimilarity2
+                            && comparedSite.getSimilarityPercentage() < mostSimilarSiteSimilarity) {
+                        mostSimilarSite2 = comparedSite;
+                        mostSimilarSiteSimilarity2 = comparedSite.getSimilarityPercentage();
+                    }
+                }
+            } else if (i == 3) {
+                for (LWebsiteA2 comparedSite : mComparedSites) {
+                    if (comparedSite.getSimilarityPercentage() > mostSimilarSiteSimilarity3
+                            && comparedSite.getSimilarityPercentage() < mostSimilarSiteSimilarity2) {
+                        mostSimilarSite3 = comparedSite;
+                        mostSimilarSiteSimilarity3 = comparedSite.getSimilarityPercentage();
+                    }
+                }
+            }
+        }
+
+        //add the most similar sites in descending order, so the top will be shown on top
+        mostSimilarSites.add(mostSimilarSite3);
+        mostSimilarSites.add(mostSimilarSite2);
+        mostSimilarSites.add(mostSimilarSite);
+
+        return mostSimilarSites;
+    }
+
+    /**
+     * display the most similar system site to the user's search site
+     *
+     * @param mostSimilarSite
+     */
+    public void displayMostSimilarSystemSite(LWebsiteA2 mostSimilarSite) {
+        if (mostSimilarSite != null) {
+            mResultsTextArea.setText("\n\n*#Most Similar Sites*\n"
+                    + mostSimilarSite.toString2() + mResultsTextArea.getText());
+        } else {
+            mResultsTextArea.setText("\n#No Similar Site\n\n"
+                    + mResultsTextArea.getText());
+        }
+    }
+
+    //thread to populate cached sites on program start
+    Thread loadCachedSitesThread = new Thread() {
+        @Override
+        public void run() {
+            initialLoadCachedSites();
+        }
+    };
+    //thread to reload cached sites
+    Thread reLoadCachedSitesThread = new Thread() {
+        @Override
+        public void run() {
+            reloadCachedSites();
+        }
+    };
+
+    private void initialLoadCachedSites() {
+        beforeLoadCachedSites();
+        duringLoadCacheSites(null);
+        postLoadCachedSites();
+    }
+
+    private void reloadCachedSites() {
+        beforeLoadCachedSites();
+        duringLoadCacheSites(null);
+        postLoadCachedSites();
+    }
+
+    private void saveCachedSites() {
+        beforeLoadCachedSites();
+        duringSaveCacheSites(mAfterCacheSaveExitProgramTextArea);
+        postLoadCachedSites();
+    }
+
+    Thread saveWebsiteCacheIndexThread = new Thread() {
+        @Override
+        public void run() {
+            saveWebsitesDataToCache(mWebsitesCacheIndexRandomAccessFile);
+        };
+
+    };
+
+    public void duringLoadCacheSites(JTextArea updateUIArea) {
+        mWebsitesCacheIndexRandomAccessFile = getWebsitesCacheIndexRandomAccessFile();
+        int progressCounter = 0;
+
+        //load in all the cached sites
+        loadSystemSitesFromCache(progressCounter, updateUIArea);
+        //load in any sites that may have been overwritten in cache
+        loadSystemSitesFromOnline(progressCounter, updateUIArea);
+        
+        saveWebsiteCacheIndexThread.start();
+    }
+
+    public boolean checkWebsitesCacheAvailable(LRandAccessFile mWebsitesCacheIndexRandAF) {
+        //must be 20 cached url's in order to load from cache
+        try {
+            loadFromCache = mWebsitesCacheIndexRandAF.length() > LRandAccessFile.RANDOM_ACCESS_FILE_URL_BLOCK_SIZE * 20;
+        } catch (IOException ex) {
+        }
+        return loadFromCache;
+    }
+
+    /**
+     * gets loads data for the list of base system sites from online 
+     * and makes their BTrees
+     * @param progressCounter
+     * @param updateUIArea 
+     */
+    public void loadSystemSitesFromOnline(int progressCounter, JTextArea updateUIArea) {
+        Scanner fileScanner = FileImporter.importFileInScanner(mSystemWebsiteUrlStringsFile);
+        while (fileScanner.hasNext()) {
+            progressCounter++;
+            String urlString = fileScanner.next();
+            mSystemActivityFrame.setTitle(LMeths.formatS("Loading %s From %s", urlString, "Online"));
+            constructCacheWebsiteBTreeFromOnline(updateUIArea, progressCounter, urlString);
+            for (String externalLinkUrlString : LJSoup.getPageExternalLinks(urlString)) {
+                progressCounter++;
+                constructCacheWebsiteBTreeFromOnline(updateUIArea, progressCounter, externalLinkUrlString);
+            }
+        }
+    }
+
+    /**
+     * grabs all urls from cache index
+     * @param progressCounter
+     * @param updateUIArea 
+     */
+    public void loadSystemSitesFromCache(int progressCounter, JTextArea updateUIArea) {        
+        try {
+            SeekableByteChannel sbc;
+            Path path = Paths.get("" + mWebsitesCacheIndexFile);
+            //open newByteChannel on the Path to read in its contents
+            sbc = Files.newByteChannel(path, StandardOpenOption.READ);
+            ByteBuffer buf = ByteBuffer.allocate(1);
+
+            /*
+             Read the bytes with the proper encoding for this platform.
+             DONT SKIP THIS STEP OR CHARACTERS WILL LOOK LIKE CHINESE
+             */
+            String encoding = System.getProperty("file.encoding");
+            ArrayList<String> urlStrings = new ArrayList<>();
+            String singleBlock = "";
+            int singleBlockBytesCount = 0;
+            while (sbc.read(buf) > 0) {
+                singleBlockBytesCount++;
+                buf.rewind();
+
+                singleBlock += Charset.forName(encoding).decode(buf);
+                //see if we've accumulated enough bits to count as a single block
+                if (singleBlockBytesCount == LRandAccessFile.RANDOM_ACCESS_FILE_URL_BLOCK_SIZE) {
+                    //if so, add the block to our list of url strings and reinitiate the block and the count
+                    urlStrings.add(LRandAccessFile.removePadding(singleBlock.trim()));
+                    singleBlock = "";
+                    singleBlockBytesCount = 0;
+                }
+                
+                buf.flip();
+            }
+            for (String urlString : urlStrings) {
+                //construct the site's btree from its cache file
+                constructCachedWebsiteBTreeFromCache(updateUIArea, progressCounter, urlString);
+            }
+        } catch (IOException x) {
+            System.out.println("#System Error: caught exception: " + x);
+        }
+    }
+
+    public void constructCacheWebsiteBTreeFromOnline(JTextArea updateUIArea, int progressCounter, String urlString) {
+        mSystemActivityFrame.setTitle(LMeths.formatS("Making %s BTree from %s", urlString, "Online"));
+        //make sure site hasn't already been loaded from cache
+        if (!mCachedWebsiteUrlStringsHashTableA2.containsKey(urlString)) {
+            LBTreeA2 cachedSiteBTree = new LBTreeA2();
+            try {
+                if (updateUIArea != null) {
+                    mAfterSaveCloseSystemActivityFrame.prependActivity("\n " + progressCounter + ": Saving " + urlString + " to cache");
+                }
+
+                cachedSiteBTree.scanInWords(LMeths.fetchWebsiteText(urlString), urlString);
+                LWebsiteA2 cachedWebsite = new LWebsiteA2(cachedSiteBTree, urlString);
+                mSystemComparisonSites.add(cachedWebsite);
+                mSimilarSitesTextArea.append(cachedWebsite.toString());
+                //add the site's url to the new urls list to be saved to cache later
+                mNewCacheWebsiteUrlStringsHashTableA2.put(urlString, cachedSiteBTree);
+            } catch (IOException ex) {
+                mSimilarSitesTextArea.append("\n\n#SYSTEM WARNING:\n Connection to " + urlString + " failed...");
+            }
+        }
+    }
+
+    public void constructCachedWebsiteBTreeFromCache(JTextArea updateUIArea, int progressCounter, String urlString) {
+        mSystemActivityFrame.setTitle(LMeths.formatS("Making %s BTree from %s", urlString, "Cache"));
+        
+        LBTreeA2 cachedSiteBTree = new LBTreeA2();
+        boolean newVersionAvailableOnline = false;
+
+        try {
+            SeekableByteChannel sbc;
+            if( urlString.contains("http://") && urlString.contains("https://") ){
+                //get the website's cache file path
+                Path path = Paths.get(mWebsitesCacheDirectory + LRandAccessFile.filterUrlToFileName(urlString) + ".dat");
+
+                //check the site's cache file's last modified date
+                long siteLastCacheDate = LRandAccessFile.getFileLastModifiedDateFromFile(path.toFile());
+                /*
+                 compare the site's cache file's last modified date to the site's HTTP header last update date
+                 if a dateA is greater than dateB, dateA is more recent
+                 */
+                if (LHttp.lastModifiedFromUrlString(urlString) > siteLastCacheDate) {
+                    mSystemActivityFrame.prependActivity(LMeths.formatS("\n#new version of available!", urlString));
+                    newVersionAvailableOnline = false;
+                    newVersionAvailableOnline = true;
+                } else {
+                    mSystemActivityFrame.prependActivity(LMeths.formatS("\n#no new version of %s available!", urlString));
+                    newVersionAvailableOnline = false;
+                }
+
+                //finally load the site's btree from the cache or new version from online
+                loadSiteBTreeFromCacheOrRecacheFromOnline(newVersionAvailableOnline, path, cachedSiteBTree, urlString, updateUIArea, progressCounter);
+            }
+        } catch (IOException x) {
+            //System.out.println("#System Error: Caught exception: " + x);
+        }
+    }
+
+    /**
+     * either load the site from cache or from online depending on whether or
+     * not there is a new version available online
+     *
+     * @param newVersionAvailableOnline
+     * @param path
+     * @param progressCounter
+     * @param urlString
+     * @param updateUIArea
+     * @param cachedSiteBTree
+     * @throws java.io.IOException
+     */
+    public void loadSiteBTreeFromCacheOrRecacheFromOnline(boolean newVersionAvailableOnline, Path path, LBTreeA2 cachedSiteBTree, String urlString, JTextArea updateUIArea, int progressCounter) throws NumberFormatException, IOException {
+        if (!newVersionAvailableOnline) {
+            loadSiteBTreeFromCache(urlString, path, cachedSiteBTree);
+        } else if (newVersionAvailableOnline) {
+            deleteSiteCacheAndLoadSiteBTreeFromOnline(path, urlString, updateUIArea, progressCounter);
+        }
+    }
+
+    /**
+     * loads a site's BTree data from cache
+     * @param urlString
+     * @param path
+     * @param cachedSiteBTree
+     * @throws IOException
+     * @throws NumberFormatException 
+     */
+    public void loadSiteBTreeFromCache(String urlString, Path path, LBTreeA2 cachedSiteBTree) throws IOException, NumberFormatException {
+        SeekableByteChannel sbc;
+        mSystemActivityFrame.appendActivity(String.format("\n#Constructing %s from cache.", urlString));
+        //open newByteChannel on the Path to read in its contents
+        sbc = Files.newByteChannel(path, StandardOpenOption.READ);
+        ByteBuffer buf = ByteBuffer.allocate(1);
+        /*
+        Read the bytes with the proper encoding for this platform.
+        Don't you skip this step or
+        you might see something that looks like
+        Chinese characters when you expect Latin-style characters.
+        */
+        String encoding = System.getProperty("file.encoding");
+        String singleBlock = "";
+        int singleBlockBytesCount = 0;
+        while (sbc.read(buf) > 0) {
+            singleBlockBytesCount++;
+            buf.rewind();
+            
+            singleBlock += Charset.forName(encoding).decode(buf);
+            //see if we've accumulated enough bits to count as a single block
+            if (singleBlockBytesCount == LRandAccessFile.RANDOM_ACCESS_FILE_BTRE_COMPOSITE_DATA_BLOCK_SIZE) {
+                //if so, add the block to the btree and reinitiate the block and the count
+                extractAndAddDataBlockToSiteBTree(LRandAccessFile.replacePaddingWithSpaces(singleBlock), cachedSiteBTree, urlString);
+                //reinitiate the block and the count
+                singleBlock = "";
+                singleBlockBytesCount = 0;
+            }
+            buf.flip();
+        }
+        //create the site's website object
+        LWebsiteA2 cachedWebsite = new LWebsiteA2(cachedSiteBTree, urlString);
+        //add to system's comparison sites
+        mSystemComparisonSites.add(cachedWebsite);
+        //display the cached site's info
+        mSimilarSitesTextArea.append(cachedWebsite.toString());
+        //add site's url to the list of already cached urls that won't be cached at close
+        mCachedWebsiteUrlStringsHashTableA2.put(urlString, 1);
+    }
+    
+    public void deleteSiteCacheAndLoadSiteBTreeFromOnline(Path path, String urlString, JTextArea updateUIArea, int progressCounter) throws IOException {
+        /**
+         * new version of this site is available online since we last cached it.
+         * Delete the existing cache file,
+         * then reconstruct the site's btree from online data
+         * and cache it.
+         */
+        Files.deleteIfExists(path);
+        mSystemActivityFrame.appendActivity(String.format("#Constructing %s from online.", urlString));
+        //construct the site's btree from online
+        constructCacheWebsiteBTreeFromOnline(updateUIArea, progressCounter, urlString);
+    }
+    
+    public void extractAndAddDataBlockToSiteBTree(String singleBlock, LBTreeA2 cachedSiteBTree, String urlString) throws NumberFormatException {
+        //get the key's data block from start of composite data block
+        String singleBlockKey = singleBlock.substring(0, LRandAccessFile.RANDOM_ACCESS_FILE_BTRE_KEY_BLOCK_SIZE).trim();
+        singleBlockKey = LMeths.filterWord(singleBlockKey);
+        //get the key's frequency data block from end of key's block
+        int singleBlockFrequency = Integer.parseInt(
+                singleBlock.substring((singleBlock.length() - LRandAccessFile.RANDOM_ACCESS_FILE_BTRE_KEY_FREQUENCY_BLOCK_SIZE)).trim());
+
+        //add the key and its frequency to the site's btree
+        cachedSiteBTree.putFrequency(LMeths.filterWord(singleBlockKey), urlString, singleBlockFrequency);
+    }
+
+    public static LRandAccessFile getWebsitesCacheIndexRandomAccessFile() {
+        LRandAccessFile websitesCacheIndexRandomAccessFile = null;
+        try {
+            websitesCacheIndexRandomAccessFile = new LRandAccessFile(LRandAccessFile.RANDOM_ACCESS_FILE_URL_BLOCK_SIZE, mWebsitesCacheIndexFile);
+        } catch (IOException ex) {
+            Logger.getLogger(Assignment2Frame2.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return websitesCacheIndexRandomAccessFile;
+    }
+
+    
+    /******************************************************************************************************************/
+    /***********************************************SAVING FUNCTIONS***************************************************/
+    /******************************************************************************************************************/
+    public void duringSaveCacheSites(JTextArea updateUIArea) {
+        LRandAccessFile mWebsitesCacheIndexRandAF = getWebsitesCacheIndexRandomAccessFile();
+        saveWebsitesDataToCache(mWebsitesCacheIndexRandAF);
+    }
+
+    public void saveWebsitesDataToCache(LRandAccessFile mWebsitesCacheIndexRandAF) {
+        if (mWebsitesCacheIndexRandAF != null) {
+            System.out.println("#System Note: Saving updated cache index ...");
+            try {
+                //1. move to end of the file to append new data
+                mWebsitesCacheIndexRandAF.seek(mWebsitesCacheIndexRandAF.length());
+            } catch (IOException ex) {
+                Logger.getLogger(Assignment2Frame2.class.getName()).log(Level.SEVERE, null, ex);
+            }
+
+            //2. go through all the sites that have not been saved to the cache
+            for (Object cacheWebsiteUrlString : mNewCacheWebsiteUrlStringsHashTableA2.keySet()) {
+                //3. make sure the site is not already in the cache
+                if (!mCachedWebsiteUrlStringsHashTableA2.containsKey(cacheWebsiteUrlString)) {
+                    System.out.print("{\nSaving [ " + cacheWebsiteUrlString + " ]'s data to cache");
+
+                    //save the site's data to cache
+                    saveSiteDataToCache(cacheWebsiteUrlString);
+                    //add the site's url to the cache index
+                    saveSiteUrlToCacheIndex(cacheWebsiteUrlString, mWebsitesCacheIndexRandAF);
+                }
+            }
+
+            //4. clear the new cache webistes hashtable so we don't recache these sites
+            mNewCacheWebsiteUrlStringsHashTableA2 = new LHashTableA2();
+            System.out.println("#System Note: Done saving cache.");
+        }
+    }
+
+    public void saveSiteUrlToCacheIndex(Object cacheWebsiteUrlString, LRandAccessFile mWebsitesCacheIndexRandAF) {
+        //save the site's url to the cache index
+        try {
+            mSystemActivityFrame.appendActivity("\nSaving [ " + cacheWebsiteUrlString + " ] to cache index\n}");
+            String cachedWebsiteUrlStringDataBlock = LRandAccessFile.createDataBlock(cacheWebsiteUrlString.toString(),
+                    LRandAccessFile.RANDOM_ACCESS_FILE_URL_BLOCK_SIZE);
+            //get the hash for the data
+            int cacheWebsiteUrlStringHash = LRandAccessFile.getDataBlockHash(cachedWebsiteUrlStringDataBlock, LRandAccessFile.RANDOM_ACCESS_FILE_URL_BLOCK_SIZE);
+            //get the seek position for the data and seek to it to begin writing
+            mWebsitesCacheIndexRandAF.seek(LRandAccessFile.getDataBlockSeekPosition(cacheWebsiteUrlStringHash, LRandAccessFile.RANDOM_ACCESS_FILE_URL_BLOCK_SIZE));
+            //write the data at that block position in the file
+            mWebsitesCacheIndexRandAF.write(cachedWebsiteUrlStringDataBlock.getBytes());
+            
+            //add this site's url to the hashtable of already cached sites so its not unnecisarily recached
+            mCachedWebsiteUrlStringsHashTableA2.put(cacheWebsiteUrlString, 1);
+        } catch (IOException ex) {}
+    }
+
+    
+
+    public void saveSiteDataToCache(Object cacheWebsiteUrlString) {
+        //get the website's cache file
+        LRandAccessFile websitesCacheRandAF = LRandAccessFile.getRandomAccessFileFromFileName(
+                LRandAccessFile.filterUrlToFileName(cacheWebsiteUrlString.toString()) + ".dat");
+        //save each key from the btree to site's cache file
+        for (LWebsiteA2 website : mSystemComparisonSites) {
+            //check if current website's url is corresponds to the site url attemping save
+            if (website.getUrlString().equalsIgnoreCase(cacheWebsiteUrlString.toString())) {
+                //get each key from site's btree
+                for (Object websiteKey : website.getWordsFrequencyBTree().keys()) {
+                    //get the key's frequency from btree
+                    int websiteKeyFrequency = website.getWordsFrequencyBTree().frequencyOf((Comparable) websiteKey);
+                    //create the key's data block
+                    String cacheWebsiteKeyDataBlock = LRandAccessFile.createDataBlock(
+                            websiteKey.toString(), LRandAccessFile.RANDOM_ACCESS_FILE_BTRE_KEY_BLOCK_SIZE);
+                    String cacheWebsiteKeyFrequencyDataBlock = LRandAccessFile.createDataBlock(
+                            websiteKeyFrequency + "", LRandAccessFile.RANDOM_ACCESS_FILE_BTRE_KEY_FREQUENCY_BLOCK_SIZE);
+                    //concatenate the key's block with it's frequency's block to make one composite data block
+                    String cacheWebsiteCompositeDataBlock = cacheWebsiteKeyDataBlock + cacheWebsiteKeyFrequencyDataBlock;
+                    if (websitesCacheRandAF != null) {
+                        try {
+                            //write the key's and its frequency's composite data block
+                            websitesCacheRandAF.write(cacheWebsiteCompositeDataBlock.getBytes());
+                        } catch (IOException ex) {
+                            System.out.println("error in writing keys to cache for " + cacheWebsiteUrlString.toString());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /***************************************************************************************************************************/
+    /*************************************************LOADING HELPERS***********************************************************/
+    /***************************************************************************************************************************/
+    public void beforeLoadCachedSites() {
+        openSystemActivityFrame("Loading Comparison Sites");
+        //mSearchTextField.setText("After load, enter a URL....");
+        mResultsTextArea.setText("Loading, just a second ...");
+        mResultsTextArea.append("\n\nAfter load is complete, "
+                + "enter a URL to fetch its word frequencies.");
+        //mSearchTextField.setEnabled(false);
+        mSearchButton.setEnabled(false);
+    }
+
+    public void postLoadCachedSites() {
+        if( mSystemActivityFrame != null){
+             mSystemActivityFrame.dispatchEvent(new WindowEvent(mSystemActivityFrame, WindowEvent.WINDOW_CLOSING));
+        }
+        
+        mSimilarSitesTextArea.setText("******Loading Complete!*******\n\n" + mSimilarSitesTextArea.getText());
+        mSearchTextField.setText("");
+        mResultsTextArea.setText("");
+        mSearchButton.setText("Search");
+        mSearchButton.setEnabled(true);
+        mSearchTextField.setEnabled(true);
+    }
+}
