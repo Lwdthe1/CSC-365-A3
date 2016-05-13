@@ -21,18 +21,18 @@ The program makes use of two important external algorithms:
 Research these algorithms and see how you can make their usage better in the program: `/src/Algorithms`
 
 # Running the Program
-##Run src/gui/A3GUI5.
+##Run `src/gui/A3GUI5`.
 This will launch src/frames/A3Frame5 of which you can change the size to your liking.
 ##Loading Edges
 Click "Load" to load your edges from your websites.
-###In src/frames/A3Frame5
+###In `src/frames/A3Frame5`
 The program is currently set up to load edges from `/websitesA3.txt`.
 The program will load the websites from the sites your specify in websitesA3.txt. I currently only have one site in there from which thousands more are parsed from. 
-The program will save your edges to the /edgesA3D.txt file.
+The program will save your edges to the `/edgesA3D.txt` file.
 
-The methods in this class have quite descriptive names, so they document themselves. A year ago, I failed to provide more documentation on the methods with lesser importance, but you should be fine navigating src/frames/A3Frame5.
+The methods in this class have quite descriptive names, so they document themselves. A year ago, I failed to provide more documentation on the methods with lesser importance, but you should be fine navigating `src/frames/A3Frame5`.
 
-Note that I already have the edges loaded. If you want to load your own, I believ you should delete /edgesA3D.txt or change the name of the file to load the edges to. I actually don't suggest you delete /edgesA3D.txt because the edges take quite some time to load and you may need /edgesA3D.txt for testing in case anything goes wrong when you make changes.
+Note that I already have the edges loaded. If you want to load your own, I believ you should delete /edgesA3D.txt or change the name of the file to load the edges to. I actually don't suggest you delete `/edgesA3D.txt` because the edges take quite some time to load and you may need `/edgesA3D.txt` for testing in case anything goes wrong when you make changes.
 
 ##After Edges Loaded
 Once the loading is complete, you can click "Show Path". Nothing will happen just yet.
@@ -48,6 +48,6 @@ After you enter a pair, e.g. "0,41", click "Show Path" now and the program will 
 For some reason, the numbers of the source and destination sites don't line up after awhile. Try running the program to see which numbers actually match up before showing the program off.
 
 ###Graph Fully Connected
-The program is supposed to return the number of spanning trees for any arbitrary node as a starting point, but because I currently only have a single site in my base sites /websitesA3.txt, the graph is fully connected and, intuitively, there are no spanning trees reported by Prim's algorithm.
+The program is supposed to return the number of spanning trees for any arbitrary node as a starting point, but because I currently only have a single site in my base sites `/websitesA3.txt`, the graph is fully connected and, intuitively, there are no spanning trees reported by Prim's algorithm.
 
 
