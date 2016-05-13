@@ -34,14 +34,17 @@ The methods in this class have quite descriptive names, so they document themsel
 
 ###Most Important Method for Similarity Metric
 `compareBaseSiteToItsExternalSites()` in `src/frames/A3Frame5`. This is where the similarity metric begins.
-You should not manipulate this method much if at all. The method you may be concerned with for changing your similarity metric is `LWebite.getSimilarityPercentage()` with is called at the end of `compareBaseSiteToItsExternalSites()` like so:
+You should not manipulate this method much if at all. The method you may be concerned with for changing your similarity metric is `LHashTable.compare()` with is called at the end of `compareBaseSiteToItsExternalSites()` like so:
 
 ```Java
  int weight = (int) LHashTable.compare(baseSiteHashTable, comparisonWebsite).getSimilarityPercentage();
  addEdge(urlStringA, urlStringB, weight);
 ```
 
-That compares a given LWebsite's data to a another website's hashtable data with `LHashTable.compare` and calls `LWebsite.getSimilarityPercentage` on the resultant comapred LWebsite to get its similarity to a base site from which an edge will be created for the graph.
+That compares a given LWebsite's data to a another website's hashtable data with `LHashTable.compare()` and calls `LWebsite.getSimilarityPercentage()` on the resultant comapred LWebsite to get its similarity to a base site from which an edge will be created for the graph.
+
+###Important Suggestion for Similarity Metric
+I highly suggest you manipulate and adapt `LHashTable.compare()` to implement your own similarity metric.
 
 ###IMPORTANT NOTE
 I already have the edges loaded. If you want to load your own, I believ you should delete /edgesA3D.txt or change the name of the file to load the edges to. I actually don't suggest you delete `/edgesA3D.txt` because the edges take quite some time to load and you may need `/edgesA3D.txt` for testing in case anything goes wrong when you make changes.
