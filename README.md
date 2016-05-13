@@ -2,17 +2,31 @@
 
 This is an assignment from [Doug Lea's](http://gee.cs.oswego.edu/) CSC 365, Data Structures and File Processing, Course at SUNY Oswego.
 
-"Write a program that collects at least 500 Wikipedia pages and links from these pages to other Wikipedia pages. Collect word frequencies as in Assignments 1 and 2 (but feel free to limit to a fixed number of most frequent words). As a connectivity check, report the number of spanning trees (for any arbitrary node as initial starting point). Store persistently (possibly just in a Serialized file). Write a program (either GUI or web-based) that reads the graph from step 1, allows a user to select any two pages (by title) and displays graphically the shortest (weighted by any similarity metric) path between them, if one exists."
+"Write a program that collects at least 500 Wikipedia pages and links from these pages to other Wikipedia pages.
+Collect word frequencies as in Assignments 1 and 2 (but feel free to limit to a fixed number of most frequent words). 
+
+As a connectivity check, report the number of spanning trees (for any arbitrary node as initial starting point). 
+Store persistently (possibly just in a Serialized file). 
+
+Write a program (either GUI or web-based) that reads the graph from step 1, allows a user to select any two pages (by title) and displays graphically the shortest (weighted by any similarity metric) path between them, if one exists."
  
 I haven't had a chance to clean up this directory from previous assignments, so setting up and running may require some careful navigating.
 
-# Running to Program
+#Algorithms
+The program makes use of two important external algorithms:
+##[Prim's Algorithm](https://www.google.com/search?q=Prim%27s+algorithm&rlz=1C1CHFX_enUS651US651&oq=Prim%27s+algorithm&aqs=chrome..69i57.2479j0j7&sourceid=chrome&ie=UTF-8) for a Minimum Spanning Tree
+
+##[Dijkstra's Algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm) For Finding Shortest Paths
+
+Research these algorithms and see how you can make their usage better in the program: `/src/Algorithms`
+
+# Running the Program
 ##Run src/gui/A3GUI5.
 This will launch src/frames/A3Frame5 of which you can change the size to your liking.
 ##Loading Edges
 Click "Load" to load your edges from your websites.
 ###In src/frames/A3Frame5
-The program is currently set up to load edges from /websitesA3.txt.
+The program is currently set up to load edges from `/websitesA3.txt`.
 The program will load the websites from the sites your specify in websitesA3.txt. I currently only have one site in there from which thousands more are parsed from. 
 The program will save your edges to the /edgesA3D.txt file.
 
@@ -30,4 +44,10 @@ You need to enter a number representing a source site and a number representing 
 After you enter a pair, e.g. "0,41", click "Show Path" now and the program will display the shortest path from the source site to the destination site in the left pane of the gui. 
 
 #Known Errors
+###Inconsitent numbering of source and destination sites
 For some reason, the numbers of the source and destination sites don't line up after awhile. Try running the program to see which numbers actually match up before showing the program off.
+
+###Graph Fully Connected
+The program is supposed to return the number of spanning trees for any arbitrary node as a starting point, but because I currently only have a single site in my base sites /websitesA3.txt, the graph is fully connected and, intuitively, there are no spanning trees reported by Prim's algorithm.
+
+
